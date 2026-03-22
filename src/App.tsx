@@ -1,5 +1,6 @@
 import { motion, useScroll, useTransform, AnimatePresence, useMotionValue } from 'motion/react';
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { Headphones, Volume2 } from 'lucide-react';
 import mapData from './japan-map-data.json';
 import { memories } from './memory-data';
 
@@ -99,11 +100,20 @@ const Loader = ({ onStart }: { onStart: () => void }) => {
           initial={{ opacity: 0, filter: 'blur(10px)' }}
           animate={{ opacity: 1, filter: 'blur(0px)' }}
           transition={{ duration: 2, ease: "easeOut" }}
-          className="flex flex-col items-center gap-4 mb-16"
+          className="flex flex-col items-center gap-6 mb-16"
         >
           <p className="text-white/50 text-[10px] md:text-xs tracking-[0.5em] uppercase font-light">
             For the best experience
           </p>
+          <div className="flex items-center gap-6 text-white/60 mb-2">
+            <div className="flex flex-col items-center gap-3">
+              <Headphones className="w-8 h-8 md:w-10 md:h-10 stroke-[1]" />
+            </div>
+            <span className="w-[1px] h-8 bg-white/20"></span>
+            <div className="flex flex-col items-center gap-3">
+              <Volume2 className="w-8 h-8 md:w-10 md:h-10 stroke-[1]" />
+            </div>
+          </div>
           <p className="text-white/80 text-sm md:text-base tracking-[0.3em] uppercase font-serif italic">
             Please go hands-free & turn your volume up
           </p>
