@@ -1,6 +1,6 @@
 import { motion, useScroll, useTransform, AnimatePresence, useMotionValue } from 'motion/react';
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Headphones, Volume2 } from 'lucide-react';
+import { Headphones, Volume2, MoveHorizontal } from 'lucide-react';
 import mapData from './japan-map-data.json';
 import { memories } from './memory-data';
 
@@ -191,6 +191,7 @@ const IntroSequence = () => {
 
 const MemoryStream = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [swipeCount, setSwipeCount] = useState(0);
   const [exitX, setExitX] = useState(0);
   const [exitY, setExitY] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
@@ -201,21 +202,25 @@ const MemoryStream = () => {
     setExitX(Math.cos(angle) * distance);
     setExitY(Math.sin(angle) * distance);
     setCurrentIndex((prev) => (prev + 1) % memories.length);
+    setSwipeCount((prev) => prev + 1);
   }, []);
 
   const topMemory = memories[currentIndex % memories.length];
   const isTopVideo = topMemory.type === 'video';
 
+  const isLastMemory = swipeCount >= memories.length - 1;
+
   useEffect(() => {
     if (!isAutoPlaying) return;
     if (isTopVideo) return; // Video handles its own swiping
+    if (isLastMemory) return; // Stop auto-swiping on the last item
     
     const timer = setTimeout(() => {
       swipeNext();
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [isAutoPlaying, isTopVideo, currentIndex, swipeNext]);
+  }, [isAutoPlaying, isTopVideo, isLastMemory, swipeNext]);
 
   const handleDragEnd = (info: any) => {
     const threshold = 100;
@@ -223,8 +228,21 @@ const MemoryStream = () => {
       setExitX(info.offset.x);
       setExitY(info.offset.y);
       setCurrentIndex((prev) => (prev + 1) % memories.length);
+      setSwipeCount((prev) => prev + 1);
     }
   };
+
+  useEffect(() => {
+    if (isLastMemory) {
+      const timer = setTimeout(() => {
+        const nextSection = document.getElementById('apology-section');
+        if (nextSection) {
+          nextSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLastMemory]);
 
   const renderedCards = [];
   for (let i = 3; i >= 0; i--) {
@@ -263,7 +281,8 @@ const MemoryStream = () => {
                 exitX={exitX}
                 exitY={exitY}
                 onVideoReadyToSwipe={swipeNext}
-                isAutoPlaying={isAutoPlaying}
+                isAutoPlaying={isAutoPlaying && !isLastMemory}
+                isLastMemory={isTop && isLastMemory}
               />
             );
           })}
@@ -271,16 +290,14 @@ const MemoryStream = () => {
       </div>
 
       <div className="flex justify-center items-center gap-3 mt-12 text-gray-500 text-[10px] md:text-xs font-mono uppercase tracking-widest animate-pulse">
-        <span>Swipe any direction</span>
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-        </svg>
+        <span>Swipe left or right</span>
+        <MoveHorizontal className="w-4 h-4" />
       </div>
     </div>
   );
 };
 
-const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSwipe, isAutoPlaying }: any) => {
+const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSwipe, isAutoPlaying, isLastMemory }: any) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
@@ -334,7 +351,7 @@ const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSw
         scale: 0.8,
         transition: { duration: 0.4, ease: "easeOut" }
       }}
-      drag={isTop ? true : false}
+      drag={isTop && !isLastMemory ? "x" : false}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
       dragElastic={0.8}
       onDragEnd={isTop ? (e, info) => handleDragEnd(info) : undefined}
@@ -372,7 +389,7 @@ const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSw
 
 const Apology = () => {
   return (
-    <div className="bg-black py-32 px-6 relative z-10 flex flex-col items-center justify-center min-h-[70vh]">
+    <div id="apology-section" className="bg-black py-32 px-6 relative z-10 flex flex-col items-center justify-center min-h-[70vh]">
       <motion.div 
         className="max-w-2xl text-center"
         initial={{ opacity: 0, y: 30 }}
@@ -706,7 +723,6 @@ export default function App() {
       <audio 
         ref={audioRef} 
         src="https://archive.org/download/PhotographEdSheeranInstrumentalMadeByZainMerchant/Photograph%20-%20Ed%20Sheeran%20%28Instrumental%20made%20by%20Zain%20Merchant%29.mp4" 
-        loop 
         onTimeUpdate={handleTimeUpdate}
       />
       {!isLoaded && <Loader onStart={handleStart} />}
