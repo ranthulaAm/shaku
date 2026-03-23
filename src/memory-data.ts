@@ -3,7 +3,7 @@ export type Memory = {
   url: string;
 };
 
-export const memories: Memory[] = [
+export const memories: Memory[] = ([
   { type: 'image', url: 'https://res.cloudinary.com/dwnsxs6uc/image/upload/q_auto,f_auto/v1774208508/26_gdqzgk.png' },
   { type: 'image', url: 'https://res.cloudinary.com/dwnsxs6uc/image/upload/q_auto,f_auto/v1774208502/43_ev6jd5.png' },
   { type: 'video', url: 'https://res.cloudinary.com/dwnsxs6uc/video/upload/q_auto,f_auto/v1774208501/33_js2kqm.mp4' },
@@ -47,7 +47,7 @@ export const memories: Memory[] = [
   { type: 'video', url: 'https://res.cloudinary.com/dwnsxs6uc/video/upload/q_auto,f_auto/v1774208536/41_zuydmf.mp4' },
   { type: 'video', url: 'https://res.cloudinary.com/dwnsxs6uc/video/upload/q_auto,f_auto/v1774208526/32_birina.mp4' },
   { type: 'image', url: 'https://res.cloudinary.com/dwnsxs6uc/image/upload/q_auto,f_auto/v1774208363/14_ga0nyi.png' }
-].sort((a, b) => {
+] as Memory[]).sort((a, b) => {
   const matchA = a.url.match(/\/(\d{2})_/);
   const matchB = b.url.match(/\/(\d{2})_/);
   const numA = matchA ? parseInt(matchA[1], 10) : 0;
