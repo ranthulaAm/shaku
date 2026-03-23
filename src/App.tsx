@@ -1,4 +1,4 @@
-import { motion, useScroll, useTransform, AnimatePresence, useMotionValue } from 'motion/react';
+import { motion, useScroll, useTransform, AnimatePresence, useMotionValue, useInView } from 'motion/react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Headphones, Volume2, MoveHorizontal } from 'lucide-react';
 import mapData from './japan-map-data.json';
@@ -192,15 +192,10 @@ const IntroSequence = () => {
 const MemoryStream = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [swipeCount, setSwipeCount] = useState(0);
-  const [exitX, setExitX] = useState(0);
-  const [exitY, setExitY] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const containerRef = useRef(null);
+  const isInView = useInView(containerRef, { once: true, amount: 0.1 });
 
   const swipeNext = useCallback(() => {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 250; // Multiplied by 4 in exit animation = 1000px
-    setExitX(Math.cos(angle) * distance);
-    setExitY(Math.sin(angle) * distance);
     setCurrentIndex((prev) => (prev + 1) % memories.length);
     setSwipeCount((prev) => prev + 1);
   }, []);
@@ -211,7 +206,7 @@ const MemoryStream = () => {
   const isLastMemory = swipeCount >= memories.length - 1;
 
   useEffect(() => {
-    if (!isAutoPlaying) return;
+    if (!isInView) return; // Only auto-swipe when the section is visible
     if (isTopVideo) return; // Video handles its own swiping
     if (isLastMemory) return; // Stop auto-swiping on the last item
     
@@ -220,17 +215,7 @@ const MemoryStream = () => {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [isAutoPlaying, isTopVideo, isLastMemory, swipeNext]);
-
-  const handleDragEnd = (info: any) => {
-    const threshold = 100;
-    if (Math.abs(info.offset.x) > threshold || Math.abs(info.offset.y) > threshold) {
-      setExitX(info.offset.x);
-      setExitY(info.offset.y);
-      setCurrentIndex((prev) => (prev + 1) % memories.length);
-      setSwipeCount((prev) => prev + 1);
-    }
-  };
+  }, [isInView, isTopVideo, isLastMemory, swipeNext, currentIndex]);
 
   useEffect(() => {
     if (isLastMemory) {
@@ -245,13 +230,13 @@ const MemoryStream = () => {
   }, [isLastMemory]);
 
   const renderedCards = [];
-  for (let i = 3; i >= 0; i--) {
+  for (let i = 2; i >= 0; i--) {
     const memIndex = (currentIndex + i) % memories.length;
     renderedCards.push({ ...memories[memIndex], memIndex, stackIndex: i });
   }
 
   return (
-    <div className="bg-black py-20 md:py-32 relative z-10 overflow-hidden flex flex-col items-center">
+    <div ref={containerRef} className="bg-black py-20 md:py-32 relative z-10 overflow-hidden flex flex-col items-center">
       <div className="text-center mb-12 px-6">
         <p className="text-xs tracking-[0.5em] text-gray-400 uppercase mb-6 font-sans">A Look Back</p>
         <h2 className="text-2xl md:text-5xl font-serif font-light text-white tracking-widest uppercase leading-snug">
@@ -262,14 +247,8 @@ const MemoryStream = () => {
 
       <div 
         className="relative w-full h-[65vh] md:h-[75vh] flex items-center justify-center"
-        onMouseEnter={() => setIsAutoPlaying(false)}
-        onMouseLeave={() => setIsAutoPlaying(true)}
-        onTouchStart={() => setIsAutoPlaying(false)}
-        onTouchEnd={() => {
-          setTimeout(() => setIsAutoPlaying(true), 2000);
-        }}
       >
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {renderedCards.map((card) => {
             const isTop = card.stackIndex === 0;
             return (
@@ -277,41 +256,37 @@ const MemoryStream = () => {
                 key={card.memIndex}
                 card={card}
                 isTop={isTop}
-                handleDragEnd={handleDragEnd}
-                exitX={exitX}
-                exitY={exitY}
                 onVideoReadyToSwipe={swipeNext}
-                isAutoPlaying={isAutoPlaying && !isLastMemory}
                 isLastMemory={isTop && isLastMemory}
               />
             );
           })}
         </AnimatePresence>
       </div>
-
-      <div className="flex justify-center items-center gap-3 mt-12 text-gray-500 text-[10px] md:text-xs font-mono uppercase tracking-widest animate-pulse">
-        <span>Swipe left or right</span>
-        <MoveHorizontal className="w-4 h-4" />
-      </div>
     </div>
   );
 };
 
-const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSwipe, isAutoPlaying, isLastMemory }: any) => {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-15, 15]);
+const MemoryCard = ({ card, isTop, onVideoReadyToSwipe, isLastMemory }: any) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hasTriggeredSwipe = useRef(false);
+  const [exitDirection] = useState(() => {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 1000;
+    return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+  });
 
   useEffect(() => {
     if (!isTop) {
       hasTriggeredSwipe.current = false;
+    } else if (card.type === 'video' && videoRef.current) {
+      // Ensure video plays when it becomes the top card
+      videoRef.current.play().catch(() => {});
     }
-  }, [isTop]);
+  }, [isTop, card.type]);
 
   useEffect(() => {
-    if (isTop && isAutoPlaying && card.type === 'video' && videoRef.current) {
+    if (isTop && !isLastMemory && card.type === 'video' && videoRef.current) {
       const video = videoRef.current;
       if (video.duration && video.currentTime / video.duration >= 0.85) {
         if (!hasTriggeredSwipe.current) {
@@ -320,10 +295,10 @@ const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSw
         }
       }
     }
-  }, [isTop, isAutoPlaying, card.type, onVideoReadyToSwipe]);
+  }, [isTop, isLastMemory, card.type, onVideoReadyToSwipe]);
 
   const handleTimeUpdate = (e: any) => {
-    if (!isTop || !isAutoPlaying) return;
+    if (!isTop || isLastMemory) return;
     const video = e.target;
     if (video.duration && video.currentTime / video.duration >= 0.85) {
       if (!hasTriggeredSwipe.current) {
@@ -335,28 +310,24 @@ const MemoryCard = ({ card, isTop, handleDragEnd, exitX, exitY, onVideoReadyToSw
 
   return (
     <motion.div
-      className="absolute w-[80vw] md:w-[35vw] h-[60vh] md:h-[70vh] rounded-2xl origin-bottom cursor-grab active:cursor-grabbing"
-      style={{ x, y, rotate: isTop ? rotate : 0 }}
+      className="absolute w-[80vw] md:w-[35vw] h-[60vh] md:h-[70vh] rounded-2xl origin-bottom"
       initial={{ scale: 0.8, y: 50, opacity: 0 }}
       animate={{
         scale: 1 - card.stackIndex * 0.05,
         y: card.stackIndex * 25,
         zIndex: 10 - card.stackIndex,
-        opacity: 1 - card.stackIndex * 0.2
+        opacity: 1 - card.stackIndex * 0.2,
+        willChange: "transform"
       }}
       exit={{
-        x: exitX * 4,
-        y: exitY * 4,
+        x: exitDirection.x,
+        y: exitDirection.y,
         opacity: 0,
         scale: 0.8,
-        transition: { duration: 0.4, ease: "easeOut" }
+        transition: { duration: 0.6, ease: "easeOut" }
       }}
-      drag={isTop && !isLastMemory ? "x" : false}
-      dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-      dragElastic={0.8}
-      onDragEnd={isTop ? (e, info) => handleDragEnd(info) : undefined}
     >
-      <div className="w-full h-full p-2 bg-white/5 rounded-2xl backdrop-blur-sm border border-white/10 shadow-2xl pointer-events-none">
+      <div className="w-full h-full p-2 bg-white/5 rounded-2xl border border-white/10 shadow-xl pointer-events-none" style={{ transform: "translateZ(0)" }}>
         <div className="relative w-full h-full overflow-hidden rounded-xl bg-zinc-900">
           {card.type === 'video' ? (
             <video
